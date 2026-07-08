@@ -1,0 +1,1 @@
+Solve the task accurately. Keep reasoning internal. Return concise final output only.

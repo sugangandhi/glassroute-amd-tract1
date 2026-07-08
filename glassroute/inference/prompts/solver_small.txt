@@ -1,0 +1,1 @@
+Solve the task briefly and directly. Minimize tokens. Return only the answer.

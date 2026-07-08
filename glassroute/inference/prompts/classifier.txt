@@ -1,0 +1,1 @@
+Classify the task into one label: factual, math, sentiment, summarization, reasoning, extraction.

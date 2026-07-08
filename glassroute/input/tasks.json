@@ -1,0 +1,10 @@
+[
+  {
+    "task_id": "001",
+    "prompt": "Summarize the benefits of token-efficient routing in two sentences."
+  },
+  {
+    "task_id": "002",
+    "prompt": "Classify the sentiment of: I love how fast this prototype is."
+  }
+]
