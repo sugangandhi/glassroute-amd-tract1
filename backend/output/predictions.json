@@ -1,0 +1,42 @@
+[
+  {
+    "id": "0",
+    "answer": "84",
+    "meta": {
+      "category": "math",
+      "route": "local_math",
+      "cached": false,
+      "duration_seconds": 0.0
+    }
+  },
+  {
+    "id": "1",
+    "answer": "1.  **Analyze the Request:** The user is asking for the capital of France.\n2.  **Identify Constraints:**\n    *   Efficient assistant.\n    *   Follow hard constraints exactly.\n    *   Never show reasoning steps, analysis, or bullet lists.\n    *   Do not describe the task, constraints, or what I am doing.\n    *   Only output the final answer.\n3.  **Formulate the Answer:** The capital of France is Paris.\n4.  **Format the Output:** Just the word \"Paris\" or a very short sentence \"Paris.\"",
+    "meta": {
+      "category": "factual",
+      "route": "remote_fireworks",
+      "cached": false,
+      "duration_seconds": 2.985
+    }
+  },
+  {
+    "id": "2",
+    "answer": "Token-efficient routing directs simple tasks to less expensive models. It reserves costly models for the most difficult problems.",
+    "meta": {
+      "category": "general",
+      "route": "remote_fireworks",
+      "cached": false,
+      "duration_seconds": 2.514
+    }
+  },
+  {
+    "id": "3",
+    "answer": "positive",
+    "meta": {
+      "category": "sentiment",
+      "route": "local_sentiment",
+      "cached": false,
+      "duration_seconds": 0.0
+    }
+  }
+]

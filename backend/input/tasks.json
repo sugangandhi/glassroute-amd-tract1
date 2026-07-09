@@ -1,0 +1,18 @@
+[
+  {
+    "id": "0",
+    "prompt": "What is 12 * 7?"
+  },
+  {
+    "id": "1",
+    "prompt": "What is the capital of France?"
+  },
+  {
+    "id": "2",
+    "prompt": "Summarize this paragraph in two sentences: Token-efficient routing sends easy tasks to cheap models and keeps expensive models for only the hardest problems."
+  },
+  {
+    "id": "3",
+    "prompt": "Is the sentence 'I absolutely loved this movie, it was fantastic' positive or negative?"
+  }
+]
