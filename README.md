@@ -161,12 +161,6 @@ The evaluation harness for Track 1 supplies its own hidden task batch to `/input
 - **OpenAI-compatible remote API:** simplifies Fireworks integration and model swapping.[7]
 - **Simple heuristics over expensive routing:** the classifier avoids spending tokens just to decide where to send a task.[14][15]
 
-## Limitations
-
-- The local math solver is intentionally narrow and targets simple arithmetic only.
-- The sentiment classifier is keyword-based and best suited for obvious polarity cases.
-- Factual and open-ended performance depends on remote model availability and API access.
-
 ## License
 
 This project is intended for hackathon submission and experimentation. Add the license that matches your repository policy before publishing.
