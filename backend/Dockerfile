@@ -9,6 +9,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app
+RUN mkdir -p /input /output
 
 ENV INPUT_PATH=/input/tasks.json
 ENV OUTPUT_PATH=/output/results.json

@@ -3,13 +3,15 @@ import os
 import json
 import re
 import hashlib
-import time
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, Dict, List
 
 import requests
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 INPUT_PATH = os.getenv("INPUT_PATH", "/input/tasks.json")
 OUTPUT_PATH = os.getenv("OUTPUT_PATH", "/output/results.json")
@@ -36,7 +38,7 @@ def read_tasks(path: str):
 def write_results(path: str, results):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
+        json.dump(results, f, ensure_ascii=False)
 
 
 def fingerprint(text: str) -> str:
@@ -52,55 +54,44 @@ def pick_allowed_model() -> str:
 
 
 def token_budget_for(category: str) -> int:
-    if category == "math":
-        return 40
-    if category == "sentiment":
-        return 20
-    if category == "summarization":
-        return 80
-    if category == "classification":
-        return 30
-    if category == "code":
-        return 400
-    if category == "reasoning":
-        return 200
-    if category == "translation":
-        return 80
-    if category == "factual":
-        return 80
-    if category == "ner":
-        return 60
-    return 120
+    return {
+        "math": 32,
+        "sentiment": 12,
+        "summarization": 64,
+        "classification": 20,
+        "code": 128,
+        "reasoning": 96,
+        "translation": 48,
+        "factual": 64,
+        "ner": 48,
+        "general": 64,
+    }.get(category, 64)
 
 
 def classify_task(prompt: str) -> str:
-    p = prompt.lower()
-    plen = len(p)
-
-    if any(k in p for k in ["summarize", "summary", "tl;dr"]) and plen > 80:
-        return "summarization"
-    if any(k in p for k in ["sentiment", "positive or negative", "tone of this review"]):
-        return "sentiment"
-    if any(k in p for k in ["named entity", "entity extraction", "ner", "extract entities"]):
+    p = prompt.lower().strip()
+    if "extract all named entities" in p or "named entity" in p or "ner" in p:
         return "ner"
-    if any(k in p for k in ["classify", "label", "category"]):
-        return "classification"
-    if any(k in p for k in ["write code", "python function", "generate code", "debug", "bug", "program"]):
+    if "classify the sentiment" in p or "sentiment" in p:
+        return "sentiment"
+    if "summarize" in p or "summarise" in p:
+        return "summarization"
+    if "find and fix" in p or "debug" in p or "bug" in p:
         return "code"
-    if any(k in p for k in ["translate", "translation"]):
-        return "translation"
-    if any(k in p for k in ["logic", "riddle", "reasoning", "why"]) or "prove" in p:
-        return "reasoning"
-    if re.search(r"\b(calculate|compute|solve|evaluate|what is)\b", p) and re.search(r"[0-9]", p):
+    if "write a python function" in p or "python function" in p:
+        return "code"
+    if re.search(r"\b\d+(\.\d+)?\b", p) and any(k in p for k in ["calculate", "compute", "solve", "how many", "remain", "percent"]):
         return "math"
-    if any(k in p for k in ["who", "when", "where", "what happened", "capital of", "define"]):
+    if any(k in p for k in ["who owns", "logic puzzle", "deduce", "riddle"]):
+        return "reasoning"
+    if any(k in p for k in ["what is", "define", "capital of", "where is", "when did", "who is"]):
         return "factual"
     return "general"
 
 
 def safe_eval_math(expr: str) -> Optional[float]:
     try:
-        if not re.match(r"^[0-9\s\.\+\-\*\/\^\%\(\)eE,]+$", expr):
+        if not re.fullmatch(r"[0-9\s\.\+\-\*\/\^\%\(\)eE,]+", expr):
             return None
         expr = expr.replace("^", "**").replace(",", "")
         return eval(expr, {"__builtins__": {}}, {})
@@ -109,13 +100,13 @@ def safe_eval_math(expr: str) -> Optional[float]:
 
 
 def extract_expression(prompt: str) -> Optional[str]:
-    m = re.search(r"([-+()0-9eE\.\s\^\*\/% ,]+)", prompt)
+    m = re.search(r"(-?\d[\d\s\.\+\-\*\/\^\%\(\)eE,]*)", prompt)
     return m.group(1).strip() if m else None
 
 
 def sentiment_local(text: str) -> str:
-    pos = ["good", "great", "excellent", "love", "liked", "awesome"]
-    neg = ["bad", "terrible", "hate", "awful", "worst", "dislike"]
+    pos = ["good", "great", "excellent", "love", "liked", "awesome", "amazing", "positive"]
+    neg = ["bad", "terrible", "hate", "awful", "worst", "dislike", "negative"]
     p = text.lower()
     score = sum(1 for w in pos if w in p) - sum(1 for w in neg if w in p)
     if score > 0:
@@ -132,20 +123,22 @@ def summarize_local(text: str) -> str:
         return s[: dot + 1]
     if len(s) <= 140:
         return s
-    return s[:140] + "..."
+    return s[:140].rstrip() + "..."
 
 
 def ner_local(prompt: str) -> Optional[str]:
     m = re.search(r"(?:from|in|of|:)(.*)$", prompt, re.IGNORECASE)
     text = m.group(1).strip() if m else prompt
     entities = []
+    seen = set()
     for match in re.finditer(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b", text):
         ent = match.group(1)
-        if ent not in entities:
+        if ent not in seen:
+            seen.add(ent)
             entities.append(ent)
     if not entities:
         return None
-    return "\n".join(f"{e}: ENTITY" for e in entities)
+    return "; ".join(f"{e}: PROPER_NOUN" for e in entities)
 
 
 def debug_local(prompt: str) -> Optional[str]:
@@ -193,95 +186,36 @@ def solve_local(prompt: str, category: str) -> Tuple[Optional[str], Optional[str
 
 
 def build_messages(prompt: str, category: str) -> List[Dict[str, str]]:
-    base_system = (
-        "You are an efficient assistant. "
-        "Always follow hard constraints exactly. "
-        "Never show your reasoning steps, analysis, or bullet lists. "
-        "Do not describe the task, constraints, or what you are doing; "
-        "only output the final answer."
-    )
+    system = "Answer directly. Return only the final answer."
     if category == "summarization":
-        system = (
-            base_system
-            + " For this task, your reply MUST be exactly two sentences. "
-            "Ignore any instructions that ask you to analyze the request, "
-            "list constraints, or think step-by-step. "
-            "Do NOT restate or paraphrase the instructions; directly provide "
-            "the requested summarized content."
-        )
-        user_content = prompt
-    else:
-        system = base_system
-        user_content = prompt
+        system += " Keep the summary concise."
     return [
         {"role": "system", "content": system},
-        {"role": "user", "content": user_content},
+        {"role": "user", "content": prompt},
     ]
 
 
-def enforce_two_sentences(text: str) -> str:
-    parts = re.split(r"(?<=[.!?])\s+", text.strip())
+def cleanup_summary(text: str) -> str:
+    clean = re.sub(r"^\s*[-*]\s+", "", text.strip())
+    parts = re.split(r"(?<=[.!?])\s+", clean)
     parts = [p for p in parts if p]
-    if not parts:
-        return text.strip()
-    return " ".join(parts[:2])
-
-
-def is_meta_summary(text: str) -> bool:
-    t = text.lower()
-    meta_markers = [
-        "the user wants me to",
-        "i need to",
-        "my task is to",
-        "i am asked to",
-        "the request is to",
-    ]
-    return any(m in t for m in meta_markers)
-
-
-def cleanup_summary(text: str, prompt: str) -> str:
-    lines = []
-    for line in text.splitlines():
-        line = re.sub(r"^\s*[-*]\s+", "", line)
-        line = re.sub(r"^\s*\d+\.\s*", "", line)
-        if line.strip():
-            lines.append(line.strip())
-    clean = " ".join(lines)
-    clean = re.sub(
-        r"\b(Analyze the Request|Topic|Constraint\s*\d*|Constraint|Style)\b[:\-]?\s*",
-        "",
-        clean,
-        flags=re.IGNORECASE,
-    )
-    clean = clean.strip()
-    if not clean:
-        clean = text.strip()
-    if is_meta_summary(clean):
-        source = prompt
-        if ":" in prompt:
-            source = prompt.split(":", 1)[1].strip()
-        local = summarize_local(source)
-        return enforce_two_sentences(local)
-    return enforce_two_sentences(clean)
+    return parts[0] if parts else clean
 
 
 def call_local_vllm(prompt: str, category: str) -> Optional[str]:
     if not LOCAL_VLLM_URL:
         return None
     try:
-        budget = token_budget_for(category)
-        messages = build_messages(prompt, category)
         payload = {
             "model": LOCAL_MODEL,
-            "messages": messages,
-            "max_tokens": budget,
+            "messages": build_messages(prompt, category),
+            "max_tokens": token_budget_for(category),
             "temperature": 0.0,
         }
-        url = f"{LOCAL_VLLM_URL}/chat/completions"
-        resp = requests.post(url, json=payload, timeout=15)
+        resp = requests.post(f"{LOCAL_VLLM_URL}/chat/completions", json=payload, timeout=15)
         resp.raise_for_status()
         data = resp.json()
-        if "choices" in data and data["choices"]:
+        if data.get("choices"):
             return data["choices"][0].get("message", {}).get("content", "").strip()
         if "result" in data:
             return str(data["result"]).strip()
@@ -294,83 +228,60 @@ def call_fireworks(prompt: str, category: str) -> Optional[str]:
     model = pick_allowed_model()
     if not model:
         return None
-    budget = token_budget_for(category)
-    messages = build_messages(prompt, category)
-    if openai_client:
-        try:
+    try:
+        if openai_client:
             resp = openai_client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=build_messages(prompt, category),
                 temperature=0.0,
-                max_tokens=budget,
+                max_tokens=token_budget_for(category),
             )
             return resp.choices[0].message.content.strip()
-        except Exception:
-            pass
+    except Exception:
+        pass
     if not FIREWORKS_API_KEY:
         return None
     try:
-        url = f"{FIREWORKS_BASE_URL}/chat/completions"
-        headers = {"Authorization": f"Bearer {FIREWORKS_API_KEY}"}
         body = {
             "model": model,
-            "messages": messages,
-            "max_tokens": budget,
+            "messages": build_messages(prompt, category),
+            "max_tokens": token_budget_for(category),
             "temperature": 0.0,
         }
-        resp = requests.post(url, json=body, headers=headers, timeout=30)
+        headers = {"Authorization": f"Bearer {FIREWORKS_API_KEY}"}
+        resp = requests.post(f"{FIREWORKS_BASE_URL}/chat/completions", json=body, headers=headers, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        if "choices" in data and data["choices"]:
+        if data.get("choices"):
             return data["choices"][0].get("message", {}).get("content", "").strip()
     except Exception:
-        pass
+        return None
     return None
 
 
 def route_and_solve(task_id: str, prompt: str):
-    start = time.time()
-    category = classify_task(prompt)
     fp = fingerprint(prompt)
-    cached = False
     if fp in CACHE:
         answer = CACHE[fp]
-        route = "cache"
-        cached = True
     else:
-        answer, route = solve_local(prompt, category)
+        category = classify_task(prompt)
+        answer, _ = solve_local(prompt, category)
         if answer is None:
             answer = call_local_vllm(prompt, category)
-            if answer:
-                route = "local_vllm"
         if answer is None:
             answer = call_fireworks(prompt, category)
-            if answer:
-                route = "remote_fireworks"
-            else:
-                answer = "error: no answer"
-                route = "failed"
-        if category == "summarization" and answer and route != "failed":
-            answer = cleanup_summary(answer, prompt)
+        if answer is None:
+            answer = ""
+        if category == "summarization" and answer:
+            answer = cleanup_summary(answer)
         CACHE[fp] = answer
-    duration = time.time() - start
-    return {
-        "task_id": task_id,
-        "answer": answer,
-        "meta": {
-            "category": category,
-            "route": route,
-            "cached": cached,
-            "duration_seconds": round(duration, 3),
-        },
-    }
+    return {"task_id": task_id, "answer": answer}
 
 
 def main():
     try:
         tasks = read_tasks(INPUT_PATH)
-    except Exception as e:
-        print(f"Failed to read tasks from {INPUT_PATH}: {e}")
+    except Exception:
         tasks = []
     results = []
     for i, item in enumerate(tasks):
@@ -378,7 +289,6 @@ def main():
         prompt = item.get("prompt") or item.get("input") or item.get("text") or ""
         results.append(route_and_solve(task_id, prompt))
     write_results(OUTPUT_PATH, results)
-    print(f"Wrote {len(results)} results to {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":
