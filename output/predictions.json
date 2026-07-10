@@ -1,1 +1,42 @@
-[]
+[
+  {
+    "id": "0",
+    "answer": "84",
+    "meta": {
+      "category": "math",
+      "route": "local_math",
+      "cached": false,
+      "duration_seconds": 0.001
+    }
+  },
+  {
+    "id": "1",
+    "answer": "Paris",
+    "meta": {
+      "category": "factual",
+      "route": "remote_fireworks",
+      "cached": false,
+      "duration_seconds": 5.819
+    }
+  },
+  {
+    "id": "2",
+    "answer": "Token-efficient routing directs simple tasks to less expensive models. It reserves costly models for the most difficult problems.",
+    "meta": {
+      "category": "general",
+      "route": "remote_fireworks",
+      "cached": false,
+      "duration_seconds": 7.304
+    }
+  },
+  {
+    "id": "3",
+    "answer": "positive",
+    "meta": {
+      "category": "sentiment",
+      "route": "local_sentiment",
+      "cached": false,
+      "duration_seconds": 0.0
+    }
+  }
+]

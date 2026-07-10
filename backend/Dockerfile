@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app
 
 ENV INPUT_PATH=/input/tasks.json
-ENV OUTPUT_PATH=/output/predictions.json
+ENV OUTPUT_PATH=/output/results.json
 
 WORKDIR /app/app
 CMD ["python", "main.py"]
