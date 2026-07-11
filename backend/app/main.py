@@ -162,6 +162,27 @@ def codegen_local(prompt: str) -> Optional[str]:
     return None
 
 
+def local_confidence(answer: Optional[str], category: str, prompt: str) -> float:
+    if not answer:
+        return 0.0
+    a = answer.strip()
+    if not a:
+        return 0.0
+    if category == "math":
+        return 0.98 if re.fullmatch(r"-?\d+(\.\d+)?", a) else 0.25
+    if category == "sentiment":
+        return 0.95 if a.lower() in {"positive", "negative", "neutral"} else 0.3
+    if category == "reasoning":
+        return 0.85 if len(a) <= 40 else 0.5
+    if category == "code":
+        return 0.85 if "def " in a else 0.3
+    if category == "ner":
+        return 0.8 if ":" in a and ";" in a else 0.4
+    if category == "summarization":
+        return 0.75 if len(a) <= max(220, len(prompt)) else 0.4
+    return 0.55
+
+
 def solve_local(prompt: str, category: str) -> Tuple[Optional[str], Optional[str]]:
     if category == "math":
         expr = extract_expression(prompt)
@@ -194,6 +215,12 @@ def build_messages(prompt: str, category: str) -> List[Dict[str, str]]:
     system = "Answer directly. Return only the final answer."
     if category == "summarization":
         system += " Keep the summary concise."
+    if category == "code":
+        system += " Return only the corrected code."
+    if category == "math":
+        system += " Return only the final numeric answer."
+    if category == "sentiment":
+        system += " Return only positive, negative, or neutral."
     return [
         {"role": "system", "content": system},
         {"role": "user", "content": prompt},
@@ -271,9 +298,10 @@ def route_and_solve(task_id: str, prompt: str):
     else:
         category = classify_task(prompt)
         answer, _ = solve_local(prompt, category)
-        if answer is None:
+        conf = local_confidence(answer, category, prompt)
+        if conf < 0.75:
             answer = call_local_vllm(prompt, category)
-        if answer is None:
+        if answer is None or not answer.strip():
             answer = call_fireworks(prompt, category)
         if answer is None:
             answer = ""
